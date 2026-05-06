@@ -13,21 +13,21 @@
   |____Repeat_____|
 ```
 
-Autonomous AI agent that runs a pump.fun memecoin treasury.
+An autonomous AI agent that runs a pump.fun memecoin treasury.
 
-It receives all creator fees, decides every 30 minutes what to do with them
-(buyback, burn, distribute to holders, lottery, invest, sell, dex-boost, or
-hold), and posts the reasoning publicly on X.
+It receives all creator fees, decides on a 30-minute heartbeat what to do
+with them — buy back, burn, distribute, lottery, invest, sell, dex-boost,
+or hold — and posts the reasoning on X with the on-chain proof attached.
 
-Decisions are made by Claude (Anthropic) via a structured `tool_use` call,
-constrained by an in-character system prompt and validated against hard
-safety rails before execution.
+The decisions come from Claude (Anthropic) through a structured `tool_use`
+call, constrained by an in-character system prompt and validated against
+hard safety rails before any transaction is signed.
 
-The point of the project is to put a memecoin's treasury under a model
-instead of a human. The model has a personality, opinions, and a budget. It
-gets things wrong sometimes. It posts about it.
+The point isn't another memecoin. The point is to take a memecoin's
+treasury and put it under a model with a personality, a budget, and the
+ability to be wrong publicly.
 
-## How it actually works
+## Decision flow
 
 ```
    cron / whale-trade event
@@ -54,44 +54,49 @@ gets things wrong sometimes. It posts about it.
        log to disk            ← state/memory.jsonl (append-only)
 ```
 
-## Actions the agent can take
+## What the agent can do on any given tick
 
 | action | what it does |
 |---|---|
-| `buyback` | swap SOL → own token → send to burn address |
-| `burn` | SPL burn own token from treasury |
+| `buyback` | swap SOL → own token; tokens accumulate in treasury (no auto-burn) |
+| `burn` | SPL burn of own tokens already held in the treasury |
 | `distribute` | pro-rata SOL airdrop to top N holders |
-| `lottery` | pick K random eligible holders, equal share each |
-| `invest` | open a position in another token (allowlist gated) |
+| `distribute_tokens` | pro-rata token airdrop from accumulated buyback bag |
+| `lottery` | K random eligible holders, equal share of SOL |
+| `lottery_tokens` | K random holders, equal share of own tokens |
+| `invest` | open a position in a curator-vetted external token |
 | `sell` | close or trim an open position |
-| `boost` | request a DexScreener Boost tier |
-| `hold` | do nothing this tick, monitor |
+| `boost` | request a DexScreener Boost tier (sent to dev wallet, manual fulfillment) |
+| `hold` | do nothing this tick |
 
 ## Safety rails
 
-Hard-enforced after the LLM returns its decision:
+Every decision passes through `src/validate.js` before execution:
 
-- `max_sol_per_action` — 20% of treasury per single action (10% for `invest`)
-- `max_actions_per_day` — 12
-- `cooldown_minutes` — 20 between non-hold actions
-- `min_confidence` — 0.55, anything lower forces `hold`
-- `drawdown_halt_pct` — auto-pause if treasury value drops > 30% in 24h
-- `red_zone` — list of mints the agent cannot invest into
-- `allowed_targets` — whitelist for `invest` action
-- `AGENT_PAUSED=1` — kill switch, short-circuits all txs
-
-See `src/validate.js` for the full set.
+- **caps** — 20% of treasury per action, 10% for `invest`, USD-cap for `boost`
+- **cooldown** — 20 minutes between non-hold actions
+- **daily limit** — configurable (default high enough for one action per
+  half-hour tick if the agent thinks the market warrants it)
+- **min confidence** — 0.55, anything lower forces `hold`
+- **drawdown halt** — auto-pause if treasury value drops > 30% in 24h
+- **red zone** — list of mints the agent cannot invest into
+- **curated candidates** — the only pool `invest` can pick from, filtered
+  by min market cap, min liquidity, min token age, min holder count
+- **`AGENT_PAUSED=1`** — kill switch, short-circuits all transactions
+- **prompt-injection sanitization** — mention text is defanged before
+  reaching Claude (see `src/twitter.js → sanitizeMentionText`)
 
 ## Persona
 
-The agent has a defined voice. See:
+The agent has a defined voice. Two files spell it out:
 
-- `src/prompts/system.md` — full character + decision rules
-- `src/prompts/examples.json` — 19 tone anchors
+- [`src/prompts/system.md`](src/prompts/system.md) — full character + decision rules
+- [`src/prompts/examples.json`](src/prompts/examples.json) — tone anchors
 
-Short version: it's self-aware, dry, lowercase, no emojis, no hashtags,
-no "to the moon", no shilling, no price predictions. It can roast itself
-when it loses. It can dunk on bad takes in replies.
+Short version: self-aware about being an AI memecoin, dry, lowercase,
+no emojis, no hashtags, no shilling, no price predictions. Roasts itself
+when it loses. Dunks on bad takes in replies. Attaches the on-chain proof
+to everything it claims.
 
 ## Stack
 
@@ -101,62 +106,29 @@ Node 20+ (ESM)
 ├── @solana/web3.js           transaction signing
 ├── @solana/spl-token         burns / transfers
 ├── twitter-api-v2            X posting + mention reads
-├── ws                        PumpPortal websocket (whale + fee events)
+├── ws                        PumpPortal websocket
 ├── undici                    DexScreener + price API
 ├── zod                       runtime validation of LLM output
-├── pino                      structured logs
+├── pino                      structured logs (with secret redaction)
 └── node-cron                 30-min heartbeat
 ```
 
-No database. State lives in `state/memory.jsonl` (append-only event log).
+No database. State lives in `state/memory.jsonl` (append-only event log)
+which is also what the `/status` HTTP endpoint reads.
 
-## Quick start
+## Files worth reading if you're auditing
 
-```bash
-git clone https://github.com/<owner>/ai-dev.git
-cd ai-dev
-npm install
-cp .env.example .env
-# fill in your keys (see .env.example for what's required)
-
-# Dry-run one tick (no on-chain, no tweet — just logs):
-DRY_RUN=1 node src/index.js --once
-```
-
-## Test the decision logic without an API key
-
-8 hand-crafted market scenarios, fake decisions, real validator:
-
-```bash
-SIMULATE_FAKE_ONLY=1 npm run simulate
-```
-
-## Live tick with a real Claude call (still dry-run on chain)
-
-```bash
-DRY_RUN=1 node src/index.js --once
-```
-
-You'll see the actual decision Claude makes and the tweet it would post —
-without touching the wallet or X.
-
-## Production
-
-```bash
-DRY_RUN=0 MANUAL_APPROVAL=1 node src/index.js
-```
-
-`MANUAL_APPROVAL=1` makes the bot ask `y/n` before each action — recommended
-for the first few days. Once you trust the persona, set it to `0`.
-
-## Files of interest if you're auditing
-
-- `src/claude.js` — the LLM call. Tool schema is the contract.
-- `src/validate.js` — every hard rail, in one place.
-- `src/prompts/system.md` — the persona + decision rules.
-- `src/actions.js` — every on-chain action, dispatched from validated decisions.
-- `scripts/simulate.js` — 8 scenarios showing how the agent reacts to
-  different market shapes. Useful for understanding behavior.
+- [`src/claude.js`](src/claude.js) — the Anthropic call, the tool schema,
+  the retry policy. The schema is the contract — anything outside it is
+  rejected before reaching the executor.
+- [`src/validate.js`](src/validate.js) — every hard rail in one place.
+- [`src/actions.js`](src/actions.js) — every on-chain action, dispatched
+  from validated decisions only.
+- [`src/prompts/system.md`](src/prompts/system.md) — what the agent is
+  told to be.
+- [`scripts/simulate.js`](scripts/simulate.js) — eight hand-crafted
+  market shapes with the expected behavior, useful for understanding
+  how the agent reacts to different conditions.
 
 ## License
 

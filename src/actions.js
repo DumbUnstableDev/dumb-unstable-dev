@@ -10,6 +10,7 @@ import {
 } from "@solana/web3.js";
 import {
   createBurnCheckedInstruction,
+  createTransferCheckedInstruction,
   getAssociatedTokenAddress,
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
@@ -48,10 +49,13 @@ export async function claimCreatorFees() {
   return sig;
 }
 
-// --- buyback: swap SOL -> our mint, then burn ---
+// --- buyback: swap SOL -> our mint, accumulate in treasury (no auto-burn) ---
+// The agent decides separately when to `burn` from accumulated holdings.
+// This separation gives the persona more leverage: a buyback signals demand
+// without immediately destroying supply, so the agent can stockpile and then
+// pick the moment for a `burn`, `distribute_tokens`, or `lottery_tokens` move.
 export async function executeBuyback({ amountSol }) {
   if (!cfg.tokenMint) throw new Error("TOKEN_MINT not configured");
-  const conn = connection();
   const lamports = Math.floor(amountSol * LAMPORTS_PER_SOL);
   const { sig, outAmount, provider } = await swap({
     inputMint: WSOL,
@@ -60,33 +64,11 @@ export async function executeBuyback({ amountSol }) {
     slippageBps: 150,
     treasury: cfg.treasury,
   });
-  log.info({ sig, amountSol, outAmount, provider }, "buyback swap confirmed");
-
-  // Burn the acquired tokens.
-  const ata = await getOrCreateAssociatedTokenAccount(
-    conn,
-    cfg.treasury,
-    cfg.tokenMint,
-    cfg.treasury.publicKey,
+  log.info(
+    { sig, amountSol, outAmount, provider, accumulating: true },
+    "buyback swap confirmed (tokens held in treasury, not burned)",
   );
-  // Keep token amount as BigInt end-to-end. Number(bigint) silently loses
-  // precision past 2^53, which can clip the tail digits on memecoin treasuries.
-  const balance = ata.amount;
-  if (balance > 0n) {
-    const decimals = 6; // pump.fun default
-    const burnIx = createBurnCheckedInstruction(
-      ata.address,
-      cfg.tokenMint,
-      cfg.treasury.publicKey,
-      balance,
-      decimals,
-    );
-    const burnTx = new Transaction().add(burnIx);
-    const burnSig = await signAndSend(burnTx, conn);
-    log.info({ burnSig, burned: balance.toString() }, "buyback burn confirmed");
-    return { swapSig: sig, burnSig };
-  }
-  return { swapSig: sig };
+  return { sig, swapSig: sig, provider, amountSol, accumulatedTokens: outAmount };
 }
 
 // --- burn tokens held in treasury ---
@@ -307,6 +289,187 @@ export async function executeBoost({ kind, pairAddress }) {
   };
 }
 
+// --- distribute_tokens: pro-rata token airdrop to top N holders ---
+// Pays out from the treasury's OWN-token ATA (built up via buyback). Tokens
+// shrink float for everyone else, which is why the persona may pick this over
+// SOL distribute when own-token bag is large but SOL is tight.
+export async function executeDistributeTokens({ amountTokens, recipients, excludes = [] }) {
+  if (!cfg.tokenMint) throw new Error("TOKEN_MINT not configured");
+  const conn = connection();
+  const decimals = 6; // pump.fun default
+  const treasuryPk = cfg.treasury.publicKey;
+
+  // Read treasury balance of own token first — fail fast if we don't have enough.
+  const sourceAta = await getOrCreateAssociatedTokenAccount(
+    conn,
+    cfg.treasury,
+    cfg.tokenMint,
+    treasuryPk,
+  );
+  const treasuryTokens = sourceAta.amount;
+  const wantedRaw = BigInt(Math.floor(amountTokens * 10 ** decimals));
+  if (wantedRaw > treasuryTokens) {
+    throw new Error(
+      `distribute_tokens: treasury holds ${treasuryTokens} raw, requested ${wantedRaw}`,
+    );
+  }
+
+  const excludeSet = new Set([
+    treasuryPk.toBase58(),
+    BURN_ADDRESS.toBase58(),
+    ...excludes,
+  ]);
+  const holders = await getHolders(cfg.tokenMint.toBase58(), 1000);
+  const eligible = holders
+    .filter((h) => !excludeSet.has(h.owner))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, recipients);
+  if (!eligible.length) throw new Error("distribute_tokens: no eligible holders");
+
+  const totalHeld = eligible.reduce((s, h) => s + BigInt(h.amount), 0n);
+
+  const payouts = eligible
+    .map((h) => ({
+      owner: h.owner,
+      raw: (BigInt(h.amount) * wantedRaw) / totalHeld,
+    }))
+    .filter((p) => p.raw > 0n);
+  if (!payouts.length) throw new Error("distribute_tokens: all payouts rounded to dust");
+
+  const sigs = [];
+  // SPL transfers ~6.5k CU each, ~10 per tx is comfortable.
+  const BATCH = 10;
+  for (let i = 0; i < payouts.length; i += BATCH) {
+    const slice = payouts.slice(i, i + BATCH);
+    const tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+    );
+    for (const p of slice) {
+      // Recipients are existing holders → ATAs already exist.
+      const recipientAta = await getAssociatedTokenAddress(
+        cfg.tokenMint,
+        new PublicKey(p.owner),
+      );
+      tx.add(
+        createTransferCheckedInstruction(
+          sourceAta.address,
+          cfg.tokenMint,
+          recipientAta,
+          treasuryPk,
+          p.raw,
+          decimals,
+        ),
+      );
+    }
+    try {
+      const sig = await signAndSend(tx, conn);
+      sigs.push(sig);
+      log.info(
+        { batch: i / BATCH, sig, count: slice.length },
+        "distribute_tokens batch sent",
+      );
+    } catch (e) {
+      log.warn(
+        { err: e.message, batch: i / BATCH },
+        "distribute_tokens batch failed — continuing",
+      );
+    }
+  }
+  return {
+    sigs,
+    sig: sigs[0] || null,
+    payouts: payouts.length,
+    totalTokens: amountTokens,
+  };
+}
+
+// --- lottery_tokens: pick K random eligible holders, equal token share ---
+export async function executeLotteryTokens({ amountTokens, winners = 10, excludes = [] }) {
+  if (!cfg.tokenMint) throw new Error("TOKEN_MINT not configured");
+  const conn = connection();
+  const decimals = 6;
+  const treasuryPk = cfg.treasury.publicKey;
+
+  const sourceAta = await getOrCreateAssociatedTokenAccount(
+    conn,
+    cfg.treasury,
+    cfg.tokenMint,
+    treasuryPk,
+  );
+  const wantedRaw = BigInt(Math.floor(amountTokens * 10 ** decimals));
+  if (wantedRaw > sourceAta.amount) {
+    throw new Error(
+      `lottery_tokens: treasury holds ${sourceAta.amount} raw, requested ${wantedRaw}`,
+    );
+  }
+
+  const excludeSet = new Set([
+    treasuryPk.toBase58(),
+    BURN_ADDRESS.toBase58(),
+    ...excludes,
+  ]);
+  const holders = await getHolders(cfg.tokenMint.toBase58(), 1000);
+  const eligible = holders.filter(
+    (h) =>
+      !excludeSet.has(h.owner) &&
+      Number(h.amount) / 10 ** decimals >= LOTTERY_MIN_UI,
+  );
+  if (eligible.length < winners) {
+    throw new Error(
+      `lottery_tokens: only ${eligible.length} eligible holders, need ${winners}`,
+    );
+  }
+
+  // Same blockhash-seeded Fisher-Yates as SOL lottery.
+  const { blockhash } = await conn.getLatestBlockhash();
+  const seedBytes = bs58.decode(blockhash);
+  const rand = (i) =>
+    (seedBytes[(i * 7 + 3) % seedBytes.length] << 16) ^
+    (seedBytes[(i * 13 + 11) % seedBytes.length] << 8) ^
+    seedBytes[(i * 31 + 17) % seedBytes.length];
+
+  const pool = [...eligible];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = rand(i) % (i + 1);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const picks = pool.slice(0, winners);
+  const perWinnerRaw = wantedRaw / BigInt(winners);
+  if (perWinnerRaw === 0n)
+    throw new Error("lottery_tokens: per-winner share rounds to 0");
+
+  const tx = new Transaction().add(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+  );
+  for (const p of picks) {
+    const recipientAta = await getAssociatedTokenAddress(
+      cfg.tokenMint,
+      new PublicKey(p.owner),
+    );
+    tx.add(
+      createTransferCheckedInstruction(
+        sourceAta.address,
+        cfg.tokenMint,
+        recipientAta,
+        treasuryPk,
+        perWinnerRaw,
+        decimals,
+      ),
+    );
+  }
+  const sig = await signAndSend(tx, conn);
+  log.info(
+    { sig, winners: picks.length, perWinnerRaw: perWinnerRaw.toString() },
+    "lottery_tokens executed",
+  );
+  return {
+    sig,
+    winners: picks.map((p) => p.owner),
+    perWinnerTokens: Number(perWinnerRaw) / 10 ** decimals,
+    totalTokens: amountTokens,
+  };
+}
+
 // --- distribute: parallel SOL transfers to top N holders ---
 // For MVP simplicity. For >200 holders, switch to merkle distributor.
 const BATCH_SIZE = 15; // transfers per tx
@@ -382,6 +545,12 @@ export async function executeDecision(d, ctx) {
         recipients: d.distribute_recipients,
         excludes: ctx.allowed?.distributionExcludes || [],
       });
+    case "distribute_tokens":
+      return executeDistributeTokens({
+        amountTokens: d.amount_tokens,
+        recipients: d.distribute_recipients,
+        excludes: ctx.allowed?.distributionExcludes || [],
+      });
     case "invest":
       return executeInvest({ amountSol: d.amount_sol, targetMint: d.target_mint });
     case "sell":
@@ -389,6 +558,12 @@ export async function executeDecision(d, ctx) {
     case "lottery":
       return executeLottery({
         amountSol: d.amount_sol,
+        winners: d.lottery_winners ?? 10,
+        excludes: ctx.allowed?.distributionExcludes || [],
+      });
+    case "lottery_tokens":
+      return executeLotteryTokens({
+        amountTokens: d.amount_tokens,
         winners: d.lottery_winners ?? 10,
         excludes: ctx.allowed?.distributionExcludes || [],
       });

@@ -13,7 +13,9 @@ const schema = z
       "buyback",
       "burn",
       "distribute",
+      "distribute_tokens",
       "lottery",
+      "lottery_tokens",
       "invest",
       "sell",
       "boost",
@@ -108,9 +110,14 @@ export async function validate(decision, ctx) {
   if (d.action === "invest") {
     if (!d.target_mint) return { ok: false, err: "invest_missing_target" };
     if (redZone.has(d.target_mint)) return { ok: false, err: "target_in_red_zone" };
-    // Target must be EITHER in static allowlist OR in curated candidates.
-    if (!allowedMints.has(d.target_mint) && !curated.has(d.target_mint)) {
-      return { ok: false, err: "target_not_in_allowlist_or_curated" };
+    // Target must come from the dynamic curated list. Curator already filters
+    // by min market cap, min liquidity, min age, min holders — so the agent
+    // has freedom to pick any reasonably-safe trending token without humans
+    // hand-maintaining a static allowlist. (Static `allowedMints` from
+    // config/allowed_targets.json is still honored if present, as a power-user
+    // override.)
+    if (!curated.has(d.target_mint) && !allowedMints.has(d.target_mint)) {
+      return { ok: false, err: "target_not_in_curated_candidates" };
     }
     if (d.amount_sol <= 0) return { ok: false, err: "invest_zero_amount" };
     if (openSet.has(d.target_mint)) {
@@ -146,10 +153,24 @@ export async function validate(decision, ctx) {
       return { ok: false, err: "distribute_zero_recipients" };
   }
 
+  if (d.action === "distribute_tokens") {
+    if (d.amount_tokens <= 0)
+      return { ok: false, err: "distribute_tokens_zero_amount" };
+    if (d.distribute_recipients <= 0)
+      return { ok: false, err: "distribute_tokens_zero_recipients" };
+  }
+
   if (d.action === "lottery") {
     if (d.amount_sol <= 0) return { ok: false, err: "lottery_zero_amount" };
     if (d.lottery_winners <= 0)
       return { ok: false, err: "lottery_zero_winners" };
+  }
+
+  if (d.action === "lottery_tokens") {
+    if (d.amount_tokens <= 0)
+      return { ok: false, err: "lottery_tokens_zero_amount" };
+    if (d.lottery_winners <= 0)
+      return { ok: false, err: "lottery_tokens_zero_winners" };
   }
 
   if (d.action === "boost") {
@@ -218,6 +239,18 @@ export async function validate(decision, ctx) {
   }
   if (d.action === "lottery" && !/(lottery|won|winner|rng|random|roll)/.test(t)) {
     return { ok: false, err: "tweet_action_mismatch_lottery" };
+  }
+  if (
+    d.action === "distribute_tokens" &&
+    !/(distribut|airdrop|sent|spread|token|holder)/.test(t)
+  ) {
+    return { ok: false, err: "tweet_action_mismatch_distribute_tokens" };
+  }
+  if (
+    d.action === "lottery_tokens" &&
+    !/(lottery|won|winner|rng|random|roll|token)/.test(t)
+  ) {
+    return { ok: false, err: "tweet_action_mismatch_lottery_tokens" };
   }
   if (
     d.action === "boost" &&
