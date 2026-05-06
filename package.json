@@ -1,0 +1,32 @@
+{
+  "name": "ai-dev",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Autonomous AI agent managing a pump.fun memecoin treasury via Claude tool_use + on-chain Solana execution.",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/index.js",
+    "tick": "node src/index.js --once",
+    "dry": "DRY_RUN=1 node src/index.js --once",
+    "simulate": "node scripts/simulate.js",
+    "test:claude": "node scripts/test-claude.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.4",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.2.2",
+    "twitter-api-v2": "^1.18.0",
+    "undici": "^6.21.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
