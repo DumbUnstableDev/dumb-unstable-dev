@@ -96,7 +96,15 @@ export const cfg = {
   dryRun: bool("DRY_RUN", true),
   manualApproval: bool("MANUAL_APPROVAL", true),
   logLevel: opt("LOG_LEVEL", "info"),
-  tickCron: opt("TICK_CRON", "*/30 * * * *"),
+  tickCron: opt("TICK_CRON", "0 * * * *"),
+  replyCron: opt("REPLY_CRON", "*/15 * * * *"),
+
+  // Stealth-launch flag. When true:
+  //   - validator hard-blocks tweets/replies containing the mint or
+  //     pump.fun/coin/<mint> link
+  //   - claude.js injects extra cryptic-mode rules into the system prompt
+  //   - decisions tend toward `hold` more (mostly cryptic musings, not actions)
+  stealthMode: bool("STEALTH_MODE", false),
 };
 
 export function connection() {

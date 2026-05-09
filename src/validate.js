@@ -66,6 +66,28 @@ export async function validate(decision, ctx) {
   // Kill switch.
   if (cfg.paused) return { ok: false, err: "agent_paused" };
 
+  // Stealth-mode hard guard. When STEALTH_MODE=1, refuse any tweet/reply
+  // containing the token mint address or a pump.fun coin URL. This is the
+  // safety net — even if Claude forgets the rules in the system prompt,
+  // the tweet still won't go out.
+  if (cfg.stealthMode && cfg.tokenMint) {
+    const mintStr = cfg.tokenMint.toBase58();
+    const allText = [
+      d.tweet_text || "",
+      ...(d.thread_followups || []),
+      ...(d.replies || []).map((r) => r.text || ""),
+    ]
+      .join(" \n ")
+      .toLowerCase();
+    if (
+      allText.includes(mintStr.toLowerCase()) ||
+      allText.includes("pump.fun/coin/") ||
+      allText.includes("dexscreener.com/solana/" + mintStr.toLowerCase())
+    ) {
+      return { ok: false, err: "stealth_mode_ca_leak_blocked" };
+    }
+  }
+
   // Confidence.
   if (d.confidence < cfg.rails.minConfidence && d.action !== "hold") {
     return { ok: false, err: "low_confidence_non_hold" };

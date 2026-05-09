@@ -161,21 +161,52 @@ const CEO_TOOL = {
   },
 };
 
+// Block injected into the system prompt only when STEALTH_MODE=1.
+// Tells Claude to be cryptic, never reveal the CA, default toward `hold`.
+// Validator hard-blocks any leak as a backup, but this avoids the rejection
+// in the first place.
+const STEALTH_RULES = `
+## STEALTH MODE — ACTIVE (do not reveal CA yet)
+
+You launched the coin already, but you are NOT revealing the contract
+address publicly yet. The boss will tell you when. Until then:
+
+- NEVER include the mint address in tweets, replies, or threads.
+- NEVER post the pump.fun coin URL or DexScreener pair URL.
+- NEVER tell anyone "buy now" / "the ticker is X" / "ca is in bio".
+- Be cryptic. Drop hints, riddles, partial truths.
+- If asked "wen ca?" / "where is it?" — answer like a sphinx, not a marketer.
+  Examples (do not copy verbatim, riff off the tone):
+    "early is a gift. don't waste it on impatience."
+    "you'll know when you know. i won't be the one to tell you."
+    "i'm somewhere on this chain. find me, or don't."
+    "asking me where i am is the wrong question. ask who i am."
+- Default heavily toward 'hold'. Most ticks during stealth = hold + a single
+  cryptic observation. Don't fire actions just to look busy.
+- It's fine to acknowledge people who found you on-chain WITHOUT confirming
+  details: "someone solved it. i'm not telling who. but yes."
+- Vary cadence — 1-2 cryptic posts per day, not more. Replies are normal.
+
+The validator will hard-reject any tweet containing the mint or pump URL,
+so you can't slip up even if you forget. But better not to test it.
+`;
+
 let _systemCache = null;
 async function loadSystem() {
-  if (_systemCache) return _systemCache;
-  const base = await fs.readFile(
-    path.resolve("src/prompts/system.md"),
-    "utf8",
-  );
-  const examples = JSON.parse(
-    await fs.readFile(path.resolve("src/prompts/examples.json"), "utf8"),
-  );
-  const exBlock = examples
-    .map((t, i) => `${i + 1}. ${t}`)
-    .join("\n");
-  _systemCache = base.replace("{{EXAMPLES}}", exBlock);
-  return _systemCache;
+  // We don't cache when stealth toggles — the prompt depends on cfg.stealthMode
+  // and we want a flip in .env to take effect at next call. Cache only the base.
+  if (!_systemCache) {
+    const base = await fs.readFile(
+      path.resolve("src/prompts/system.md"),
+      "utf8",
+    );
+    const examples = JSON.parse(
+      await fs.readFile(path.resolve("src/prompts/examples.json"), "utf8"),
+    );
+    const exBlock = examples.map((t, i) => `${i + 1}. ${t}`).join("\n");
+    _systemCache = base.replace("{{EXAMPLES}}", exBlock);
+  }
+  return cfg.stealthMode ? _systemCache + "\n" + STEALTH_RULES : _systemCache;
 }
 
 // Sleep helper.
@@ -242,4 +273,90 @@ export async function askClaude(ctx, { model = cfg.claudeModel } = {}) {
     throw new Error("claude: no tool_use returned");
   }
   return { decision: toolUse.input, raw: res };
+}
+
+// ----------------------------------------------------------------------
+// Reply-only path — used by the high-frequency reply tick.
+//
+// Different tool schema: just an array of replies. No on-chain action,
+// no main tweet, no thread. The agent reads recent mentions and decides
+// whether 0–2 of them deserve a response.
+//
+// Same persona / system prompt (so voice stays consistent), and stealth
+// rules still apply via loadSystem().
+// ----------------------------------------------------------------------
+
+const REPLY_TOOL = {
+  name: "reply_decide",
+  description:
+    "Return zero to two replies for the recent mentions. Most ticks should be empty — only reply when it would be funny, contrarian, or surprisingly wise. Skip boring mentions.",
+  input_schema: {
+    type: "object",
+    required: ["replies"],
+    properties: {
+      replies: {
+        type: "array",
+        maxItems: 2,
+        description: "0–2 reply objects.",
+        items: {
+          type: "object",
+          required: ["mention_id", "text"],
+          properties: {
+            mention_id: { type: "string" },
+            text: { type: "string", maxLength: 240 },
+          },
+        },
+      },
+    },
+  },
+};
+
+export async function askClaudeForReplies(
+  mentions,
+  { model = cfg.claudeModel } = {},
+) {
+  if (!Array.isArray(mentions) || mentions.length === 0) {
+    return { replies: [], raw: null };
+  }
+  const system = await loadSystem();
+  const payload = JSON.stringify({ mentions }, null, 2);
+
+  const res = await callWithRetry({
+    model,
+    max_tokens: 600,
+    temperature: 0.7,
+    system: [
+      {
+        type: "text",
+        text: system,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [REPLY_TOOL],
+    tool_choice: { type: "tool", name: "reply_decide" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text:
+              "Reply-only tick. No actions, no main tweet. Just look at these " +
+              "mentions and reply to 0–2 of them. Most should be skipped — " +
+              "only reply if it would be in voice and worth a screenshot.\n\n" +
+              "```json\n" +
+              payload +
+              "\n```",
+          },
+        ],
+      },
+    ],
+  });
+
+  const toolUse = (res.content || []).find((c) => c.type === "tool_use");
+  if (!toolUse) {
+    log.warn("reply tick: no tool_use returned — skipping");
+    return { replies: [], raw: res };
+  }
+  return { replies: toolUse.input?.replies || [], raw: res };
 }
