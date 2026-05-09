@@ -72,6 +72,13 @@ export const cfg = {
     accessSecret: opt("TWITTER_ACCESS_SECRET", ""),
     bearer: opt("TWITTER_BEARER_TOKEN", ""),
   },
+  // Cookie-auth path (free, via agent-twitter-client). When both authToken
+  // and ct0 are set, twitter.js prefers this over the official API.
+  twitterCookies: {
+    authToken: opt("TWITTER_AUTH_TOKEN", ""),
+    ct0: opt("TWITTER_CT0", ""),
+    username: opt("TWITTER_USERNAME", ""),
+  },
 
   heliusKey: opt("HELIUS_API_KEY", ""),
   pumpportalWs: opt("PUMPPORTAL_WS", "wss://pumpportal.fun/api/data"),

@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.90.0",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.98.4",
+    "agent-twitter-client": "^0.0.18",
     "bs58": "^6.0.0",
     "dotenv": "^16.4.5",
     "node-cron": "^3.0.3",

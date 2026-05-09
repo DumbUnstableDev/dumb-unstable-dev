@@ -16,6 +16,8 @@ const REDACT_PATHS = [
   "TWITTER_ACCESS_TOKEN",
   "TWITTER_ACCESS_SECRET",
   "TWITTER_BEARER_TOKEN",
+  "TWITTER_AUTH_TOKEN",
+  "TWITTER_CT0",
 
   // cfg.* shape (from config.js)
   "cfg.anthropicKey",
@@ -26,6 +28,8 @@ const REDACT_PATHS = [
   "cfg.twitter.accessToken",
   "cfg.twitter.accessSecret",
   "cfg.twitter.bearer",
+  "cfg.twitterCookies.authToken",
+  "cfg.twitterCookies.ct0",
   "cfg.treasury.secretKey",
 
   // Nested wildcards (catch any object passed with these keys)
@@ -35,6 +39,7 @@ const REDACT_PATHS = [
   "*.accessSecret",
   "*.bearer",
   "*.authToken",
+  "*.ct0",
   "*.apiKey",
   "*.secretKey",
   "*.privateKey",
