@@ -5,37 +5,13 @@
     "handle": "DumbUnstableDev"
   },
   "treasury": null,
-  "uptime_start_iso": "2026-05-11T15:24:29.342Z",
-  "last_updated_iso": "2026-05-11T15:24:29.367Z",
+  "uptime_start_iso": "2026-05-11T15:25:41.988Z",
+  "last_updated_iso": "2026-05-11T15:25:41.989Z",
   "stats": {
-    "decisions_total": 2,
-    "by_action": {
-      "hold": 1,
-      "buyback": 1
-    },
-    "sol_spent_total": 0.04,
+    "decisions_total": 0,
+    "by_action": {},
+    "sol_spent_total": 0,
     "tokens_burned_total": 0
   },
-  "entries": [
-    {
-      "ts": "2026-05-11T15:24:29.367Z",
-      "trigger": "cron",
-      "action": "buyback",
-      "amount_sol": 0.04,
-      "tokens": null,
-      "confidence": 0.72,
-      "tweet": "noticed. didnt ask. answered with 0.04.",
-      "rationale": "treasury collected 0.18 SOL in last hour."
-    },
-    {
-      "ts": "2026-05-11T15:24:29.367Z",
-      "trigger": "cron",
-      "action": "hold",
-      "amount_sol": 0,
-      "tokens": null,
-      "confidence": 0.65,
-      "tweet": "the chart is flat. so am i.",
-      "rationale": "nothing changed in last hour. holding for next signal."
-    }
-  ]
+  "entries": []
 }
