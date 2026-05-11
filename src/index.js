@@ -9,7 +9,6 @@ import { executeDecision, claimCreatorFees } from "./actions.js";
 import { postTweet, postReplies } from "./twitter.js";
 import { recentMentions } from "./twitter.js";
 import { appendAction } from "./memory.js";
-import { subscribeTokenTrades } from "./lib/pumpportal.js";
 import { startStatusServer } from "./status-server.js";
 
 let _tickInFlight = false;
@@ -43,7 +42,7 @@ async function askApproval(summary) {
 export async function tick({ trigger = "cron" } = {}) {
   if (_tickInFlight) {
     log.info({ trigger }, "tick already in flight — skipping");
-    // Record skipped triggers so dropped whale events are visible in the log.
+    // Record skipped triggers so overlapping/dropped ticks are visible in the log.
     try {
       await appendAction({
         trigger,
@@ -281,47 +280,6 @@ export async function replyTick() {
   }
 }
 
-// Whale detection — triggers a tick if a big buy/sell hits the token.
-// Throttled so a burst of whales (e.g. 10 buys in 5 min during a pump)
-// doesn't fire 10 ticks back-to-back and spam the timeline. After firing,
-// further whale events within WHALE_COOLDOWN_MIN are observed-and-skipped.
-// (The size of each whale is still logged for context.)
-let _lastWhaleTickAt = 0;
-let _whalesSkippedSinceLast = 0;
-
-function onTrade(msg) {
-  const sol = Number(msg.solAmount || 0);
-  if (sol < cfg.whaleThresholdSol) return;
-
-  const nowMs = Date.now();
-  const cooldownMs = cfg.whaleCooldownMin * 60 * 1000;
-  const elapsedMs = nowMs - _lastWhaleTickAt;
-
-  if (_lastWhaleTickAt > 0 && elapsedMs < cooldownMs) {
-    _whalesSkippedSinceLast += 1;
-    log.info(
-      {
-        sol,
-        type: msg.txType,
-        cooldownSecLeft: Math.round((cooldownMs - elapsedMs) / 1000),
-        skippedSinceLast: _whalesSkippedSinceLast,
-      },
-      "whale trade observed during cooldown — not firing tick",
-    );
-    return;
-  }
-
-  log.info(
-    { sol, type: msg.txType, prevSkipped: _whalesSkippedSinceLast },
-    "whale trade detected — firing tick",
-  );
-  _lastWhaleTickAt = nowMs;
-  _whalesSkippedSinceLast = 0;
-  tick({ trigger: "whale_trade" }).catch((e) =>
-    log.error({ err: e.message }, "event tick error"),
-  );
-}
-
 async function main() {
   const once = process.argv.includes("--once");
 
@@ -359,11 +317,6 @@ async function main() {
     );
   });
   log.info({ cron: cfg.replyCron }, "reply cron scheduled");
-
-  // Event trigger: whale trades on our token.
-  if (cfg.tokenMint) {
-    subscribeTokenTrades([cfg.tokenMint.toBase58()], onTrade);
-  }
 
   // Optional HTTP /status endpoint (set STATUS_PORT=3030 in .env to enable).
   startStatusServer();
