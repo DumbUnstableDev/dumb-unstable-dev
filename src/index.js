@@ -9,6 +9,7 @@ import { executeDecision, claimCreatorFees } from "./actions.js";
 import { postTweet, postReplies } from "./twitter.js";
 import { recentMentions } from "./twitter.js";
 import { appendAction } from "./memory.js";
+import { appendDecision, syncFeed } from "./feed.js";
 import { startStatusServer } from "./status-server.js";
 
 let _tickInFlight = false;
@@ -159,7 +160,9 @@ export async function tick({ trigger = "cron" } = {}) {
       }
     }
 
-    // 8. Record.
+    // 8. Record (private memory + public feed).
+    const tx_sig =
+      execRes?.sig || execRes?.swapSig || execRes?.sigs?.[0] || null;
     await appendAction({
       trigger,
       action: d.action,
@@ -171,13 +174,25 @@ export async function tick({ trigger = "cron" } = {}) {
       confidence: d.confidence,
       tweet_text: d.tweet_text,
       rationale: d.rationale_private,
-      tx_sig: execRes?.sig || execRes?.swapSig || execRes?.sigs?.[0] || null,
+      tx_sig,
       tweet_id: tweetRes?.ids?.[0] || null,
       tweet_dry_run: tweetRes?.dryRun || false,
       exec_dry_run: execRes?.dryRun || false,
       replies: replyRes || null,
       lottery_winners: execRes?.winners || null,
       boost_kind: d.boost_kind || null,
+    });
+    // Public feed — sanitization is handled inside feed.js (stealth-aware).
+    await appendDecision({
+      trigger,
+      action: d.action,
+      amount_sol: d.amount_sol,
+      amount_tokens: d.amount_tokens,
+      target: d.target_mint,
+      confidence: d.confidence,
+      tweet_text: d.tweet_text,
+      rationale_private: d.rationale_private,
+      tx_sig,
     });
     log.info({ ms: Date.now() - started }, "=== tick end (executed) ===");
   } finally {
@@ -317,6 +332,17 @@ async function main() {
     );
   });
   log.info({ cron: cfg.replyCron }, "reply cron scheduled");
+
+  // Public feed sync — pushes docs/feed.json to GitHub.
+  // Slow cadence (every 5 min) since the data only changes on ticks and
+  // we want to avoid spammy commit history.
+  const feedCron = cfg.feedCron || "*/5 * * * *";
+  cron.schedule(feedCron, () => {
+    syncFeed().catch((e) =>
+      log.warn({ err: e.message }, "feed sync error (non-fatal)"),
+    );
+  });
+  log.info({ cron: feedCron }, "feed sync cron scheduled");
 
   // Optional HTTP /status endpoint (set STATUS_PORT=3030 in .env to enable).
   startStatusServer();

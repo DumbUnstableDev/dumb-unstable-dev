@@ -18,6 +18,7 @@ const REDACT_PATHS = [
   "TWITTER_BEARER_TOKEN",
   "TWITTER_AUTH_TOKEN",
   "TWITTER_CT0",
+  "FEED_GITHUB_TOKEN",
 
   // cfg.* shape (from config.js)
   "cfg.anthropicKey",

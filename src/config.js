@@ -98,6 +98,7 @@ export const cfg = {
   logLevel: opt("LOG_LEVEL", "info"),
   tickCron: opt("TICK_CRON", "0 * * * *"),
   replyCron: opt("REPLY_CRON", "*/15 * * * *"),
+  feedCron: opt("FEED_CRON", "*/5 * * * *"),
 
   // Stealth-launch flag. When true:
   //   - validator hard-blocks tweets/replies containing the mint or
