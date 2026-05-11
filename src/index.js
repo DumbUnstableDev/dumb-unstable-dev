@@ -282,12 +282,44 @@ export async function replyTick() {
 }
 
 // Whale detection — triggers a tick if a big buy/sell hits the token.
+// Throttled so a burst of whales (e.g. 10 buys in 5 min during a pump)
+// doesn't fire 10 ticks back-to-back and spam the timeline. After firing,
+// further whale events within WHALE_COOLDOWN_MIN are observed-and-skipped.
+// (The size of each whale is still logged for context.)
+let _lastWhaleTickAt = 0;
+let _whalesSkippedSinceLast = 0;
+
 function onTrade(msg) {
   const sol = Number(msg.solAmount || 0);
-  const isWhale = sol >= 3;
-  if (!isWhale) return;
-  log.info({ sol, type: msg.txType }, "whale trade detected — firing tick");
-  tick({ trigger: "whale_trade" }).catch((e) => log.error({ err: e.message }, "event tick error"));
+  if (sol < cfg.whaleThresholdSol) return;
+
+  const nowMs = Date.now();
+  const cooldownMs = cfg.whaleCooldownMin * 60 * 1000;
+  const elapsedMs = nowMs - _lastWhaleTickAt;
+
+  if (_lastWhaleTickAt > 0 && elapsedMs < cooldownMs) {
+    _whalesSkippedSinceLast += 1;
+    log.info(
+      {
+        sol,
+        type: msg.txType,
+        cooldownSecLeft: Math.round((cooldownMs - elapsedMs) / 1000),
+        skippedSinceLast: _whalesSkippedSinceLast,
+      },
+      "whale trade observed during cooldown — not firing tick",
+    );
+    return;
+  }
+
+  log.info(
+    { sol, type: msg.txType, prevSkipped: _whalesSkippedSinceLast },
+    "whale trade detected — firing tick",
+  );
+  _lastWhaleTickAt = nowMs;
+  _whalesSkippedSinceLast = 0;
+  tick({ trigger: "whale_trade" }).catch((e) =>
+    log.error({ err: e.message }, "event tick error"),
+  );
 }
 
 async function main() {

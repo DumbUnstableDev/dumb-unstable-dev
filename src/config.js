@@ -105,6 +105,13 @@ export const cfg = {
   //   - claude.js injects extra cryptic-mode rules into the system prompt
   //   - decisions tend toward `hold` more (mostly cryptic musings, not actions)
   stealthMode: bool("STEALTH_MODE", false),
+
+  // Whale-event triggering — how big a trade has to be to fire an extra
+  // tick, and how long to wait between whale-triggered ticks. Without the
+  // cooldown a burst of whales would fire many ticks in minutes and spam
+  // the timeline.
+  whaleThresholdSol: num("WHALE_THRESHOLD_SOL", 5),
+  whaleCooldownMin: num("WHALE_COOLDOWN_MIN", 45),
 };
 
 export function connection() {
