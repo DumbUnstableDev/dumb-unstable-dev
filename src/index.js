@@ -10,6 +10,7 @@ import { postTweet, postReplies } from "./twitter.js";
 import { recentMentions } from "./twitter.js";
 import { appendAction } from "./memory.js";
 import { appendDecision, syncFeed } from "./feed.js";
+import { maybeAutoBoost, buildAutoBoostTweet } from "./auto-boost.js";
 import { startStatusServer } from "./status-server.js";
 
 let _tickInFlight = false;
@@ -62,6 +63,48 @@ export async function tick({ trigger = "cron" } = {}) {
 
     // 1. (Optional) claim fees before we decide.
     await tryClaimFeesSafely();
+
+    // 1.5. AUTO-BOOST TRIGGER — runs BEFORE Claude call.
+    // If treasury accumulated past AUTO_BOOST_AT_SOL and cooldown is
+    // satisfied, automatically transfer that amount to step-bro wallet
+    // for DS Boost. This is programmatic — not a Claude decision —
+    // because it should fire reliably every time the threshold hits.
+    // The agent's regular `boost` action remains available for Claude
+    // to use on top of this (e.g. for a 500x at high treasury).
+    const boostRes = await maybeAutoBoost();
+    if (boostRes) {
+      const boostTweet = buildAutoBoostTweet(boostRes);
+      let tweetRes = null;
+      try {
+        tweetRes = await postTweet(boostTweet);
+      } catch (e) {
+        log.warn({ err: e.message }, "auto-boost tweet failed");
+      }
+      await appendAction({
+        trigger: "auto_boost",
+        action: "boost",
+        status: "executed",
+        amount_sol: boostRes.amount_sol,
+        target: boostRes.target,
+        tweet_text: boostTweet,
+        rationale: `auto-trigger: treasury crossed ${cfg.autoBoost.thresholdSol} SOL threshold (count #${boostRes.count}). sent to step-bro for manual DS boost purchase.`,
+        tx_sig: boostRes.sig,
+        tweet_id: tweetRes?.ids?.[0] || null,
+      });
+      await appendDecision({
+        trigger: "auto_boost",
+        action: "boost",
+        amount_sol: boostRes.amount_sol,
+        tweet_text: boostTweet,
+        rationale_private: `treasury hit ${cfg.autoBoost.thresholdSol} sol → auto-transferred to step-bro for ds boost. count #${boostRes.count}.`,
+        tx_sig: boostRes.sig,
+      });
+      log.info(
+        { ms: Date.now() - started },
+        "=== tick end (auto-boost fired — main decision skipped this round) ===",
+      );
+      return;
+    }
 
     // 2. Build context.
     const ctx = await buildContext();

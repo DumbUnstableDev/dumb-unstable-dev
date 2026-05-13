@@ -106,6 +106,16 @@ export const cfg = {
   //   - claude.js injects extra cryptic-mode rules into the system prompt
   //   - decisions tend toward `hold` more (mostly cryptic musings, not actions)
   stealthMode: bool("STEALTH_MODE", false),
+
+  // Auto-boost trigger — when treasury accumulates AT_SOL, automatically
+  // transfer that amount to BOOST_PAYMENT_WALLET (step-bro) for manual DS
+  // Boost purchase. Cooldown'd to prevent repeated firing.
+  autoBoost: {
+    enabled: bool("AUTO_BOOST_ENABLED", true),
+    thresholdSol: num("AUTO_BOOST_AT_SOL", 3),
+    cooldownHours: num("AUTO_BOOST_COOLDOWN_HOURS", 24),
+    targetWallet: opt("BOOST_PAYMENT_WALLET", ""),
+  },
 };
 
 export function connection() {
