@@ -64,13 +64,12 @@ export async function tick({ trigger = "cron" } = {}) {
     // 1. (Optional) claim fees before we decide.
     await tryClaimFeesSafely();
 
-    // 1.5. AUTO-BOOST TRIGGER — runs BEFORE Claude call.
-    // If treasury accumulated past AUTO_BOOST_AT_SOL and cooldown is
-    // satisfied, automatically transfer that amount to step-bro wallet
-    // for DS Boost. This is programmatic — not a Claude decision —
-    // because it should fire reliably every time the threshold hits.
-    // The agent's regular `boost` action remains available for Claude
-    // to use on top of this (e.g. for a 500x at high treasury).
+    // 1.5. AUTO-INITIAL-BOOST — runs BEFORE Claude call.
+    // ONE-TIME trigger. Fires when treasury FIRST crosses AUTO_BOOST_AT_SOL
+    // (default 3 SOL). Transfers that amount to step-bro for the initial
+    // DexScreener listing boost. After this single firing, the trigger
+    // is permanently disabled — subsequent boosts are Claude's strategic
+    // decision via the normal `boost` action (10x / 30x / 50x / 100x / 500x).
     const boostRes = await maybeAutoBoost();
     if (boostRes) {
       const boostTweet = buildAutoBoostTweet(boostRes);
@@ -78,30 +77,30 @@ export async function tick({ trigger = "cron" } = {}) {
       try {
         tweetRes = await postTweet(boostTweet);
       } catch (e) {
-        log.warn({ err: e.message }, "auto-boost tweet failed");
+        log.warn({ err: e.message }, "auto-initial-boost tweet failed");
       }
       await appendAction({
-        trigger: "auto_boost",
+        trigger: "auto_initial_boost",
         action: "boost",
         status: "executed",
         amount_sol: boostRes.amount_sol,
         target: boostRes.target,
         tweet_text: boostTweet,
-        rationale: `auto-trigger: treasury crossed ${cfg.autoBoost.thresholdSol} SOL threshold (count #${boostRes.count}). sent to step-bro for manual DS boost purchase.`,
+        rationale: `one-time initial boost: treasury crossed ${cfg.autoBoost.thresholdSol} SOL for the first time. sent to step-bro for manual DS listing. this trigger now permanently disabled — subsequent boosts via Claude decision.`,
         tx_sig: boostRes.sig,
         tweet_id: tweetRes?.ids?.[0] || null,
       });
       await appendDecision({
-        trigger: "auto_boost",
+        trigger: "auto_initial_boost",
         action: "boost",
         amount_sol: boostRes.amount_sol,
         tweet_text: boostTweet,
-        rationale_private: `treasury hit ${cfg.autoBoost.thresholdSol} sol → auto-transferred to step-bro for ds boost. count #${boostRes.count}.`,
+        rationale_private: `treasury reached ${cfg.autoBoost.thresholdSol} sol → fired the one-time initial-boost trigger. step-bro will handle the ds listing. future boosts are my own call.`,
         tx_sig: boostRes.sig,
       });
       log.info(
         { ms: Date.now() - started },
-        "=== tick end (auto-boost fired — main decision skipped this round) ===",
+        "=== tick end (auto-initial-boost fired — one-time; main decision skipped this round) ===",
       );
       return;
     }

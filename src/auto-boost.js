@@ -1,20 +1,20 @@
-// Auto-boost trigger.
+// Auto-initial-boost — ONE-TIME trigger.
 //
-// When the treasury accumulates AUTO_BOOST_AT_SOL (default: 3 SOL), the bot
-// AUTOMATICALLY transfers that amount to the step-bro wallet
-// (BOOST_PAYMENT_WALLET). The step-bro then buys a DexScreener Boost
-// manually on the DS UI (DS has no public payment API — see system.md).
+// When the treasury FIRST accumulates AUTO_BOOST_AT_SOL (default: 3 SOL),
+// the bot automatically transfers that amount to the step-bro wallet
+// (BOOST_PAYMENT_WALLET). The step-bro then buys the INITIAL DexScreener
+// boost/listing fee manually on the DS UI — this is what makes our token
+// "appear properly" on DexScreener with the boost badge.
 //
-// This is a programmatic trigger, NOT a Claude decision. The agent's
-// regular `boost` action is still in the decision space for cases where
-// Claude wants to boost MORE aggressively (e.g. for a 500x tier with a
-// large treasury). This module handles the "default" cadence — every
-// time the treasury crosses 3 SOL, fire one boost.
+// After this ONE firing, this trigger is permanently disabled. All
+// SUBSEQUENT boosts are Claude-decided via the normal `boost` action
+// (with tier selection: 10x / 30x / 50x / 100x / 500x).
 //
-// Cooldown: AUTO_BOOST_COOLDOWN_HOURS (default 24) — prevents the trigger
-// from firing multiple times if fees keep coming in faster than expected.
+// This is intentional: the initial boost is a one-time infrastructure
+// step (the agent needs to be visible on DS). After that, boosting becomes
+// a strategic decision the agent makes itself based on market conditions.
 //
-// State persisted in state/auto-boost.json so cooldown survives restarts.
+// State persisted in state/auto-boost.json (done flag survives restarts).
 
 import {
   LAMPORTS_PER_SOL,
@@ -35,7 +35,7 @@ async function loadState() {
   try {
     return JSON.parse(await fs.readFile(STATE_PATH, "utf8"));
   } catch {
-    return { last_sent_at: 0, total_sent_lamports: 0, count: 0 };
+    return { done: false, sent_at: 0, sent_lamports: 0, sig: null };
   }
 }
 
@@ -70,16 +70,12 @@ export async function maybeAutoBoost() {
       return null;
     }
 
-    // Cooldown check
+    // ONE-TIME check — if already fired, never fire again
     const state = await loadState();
-    const cooldownMs = cfg.autoBoost.cooldownHours * 3600 * 1000;
-    const elapsed = Date.now() - state.last_sent_at;
-    if (state.last_sent_at > 0 && elapsed < cooldownMs) {
+    if (state.done) {
       log.debug(
-        {
-          cooldownMinLeft: Math.round((cooldownMs - elapsed) / 60000),
-        },
-        "auto-boost: cooldown active",
+        { sent_at: state.sent_at, sig: state.sig },
+        "auto-initial-boost: already fired — disabled forever",
       );
       return null;
     }
@@ -142,16 +138,16 @@ export async function maybeAutoBoost() {
       commitment: "confirmed",
     });
 
-    // Update state
-    state.last_sent_at = Date.now();
-    state.total_sent_lamports += sendLamports;
-    state.count += 1;
-    state.last_sig = sig;
+    // Mark as done — permanently disable for future ticks
+    state.done = true;
+    state.sent_at = Date.now();
+    state.sent_lamports = sendLamports;
+    state.sig = sig;
     await saveState(state);
 
     log.info(
-      { sig, amount_sol: cfg.autoBoost.thresholdSol, count: state.count },
-      "auto-boost: confirmed",
+      { sig, amount_sol: cfg.autoBoost.thresholdSol },
+      "auto-initial-boost: confirmed — trigger now permanently disabled",
     );
 
     return {
@@ -162,7 +158,6 @@ export async function maybeAutoBoost() {
         cfg.autoBoost.targetWallet.slice(0, 4) +
         "..." +
         cfg.autoBoost.targetWallet.slice(-4),
-      count: state.count,
     };
   } catch (e) {
     log.error(
@@ -173,16 +168,14 @@ export async function maybeAutoBoost() {
   }
 }
 
-// Helper for index.js to write an in-voice tweet about the auto-boost
+// Helper for index.js to write an in-voice tweet about the initial boost.
+// This is the ONE-TIME tweet about activating DexScreener presence.
 export function buildAutoBoostTweet(boostRes) {
-  // Falls back to a template if Claude is unavailable. Mostly used to
-  // make the auto-boost feel like a normal in-voice action, not a robotic
-  // notification.
   const variants = [
-    `treasury hit ${boostRes.amount_sol} sol. sent it to my step-bro. he'll buy the boost on dex screener — i can't, i don't have hands.`,
-    `${boostRes.amount_sol} sol went out. my step-bro is buying the boost. dex doesn't have an api for me. step-bro does have hands. it works.`,
-    `accumulated ${boostRes.amount_sol} sol. immediately sent it to the human who buys the boost for me. some workflows can't be automated yet.`,
-    `auto-trigger fired: ${boostRes.amount_sol} sol → step-bro → dexscreener. i set the rule, i don't break it.`,
+    `treasury hit ${boostRes.amount_sol} sol. sent it to my step-bro so he can get me on dexscreener properly. i can't press the buttons — he can.`,
+    `step one done. ${boostRes.amount_sol} sol → step-bro → dexscreener listing. i couldn't show up there without him. now i can.`,
+    `${boostRes.amount_sol} sol went out. step-bro is putting me on dexscreener. this is the one time i needed a human. after this, i'm on my own.`,
+    `paying for visibility. ${boostRes.amount_sol} sol → step-bro → ds. now we're trackable. now everyone can watch.`,
   ];
   return variants[Math.floor(Math.random() * variants.length)];
 }
