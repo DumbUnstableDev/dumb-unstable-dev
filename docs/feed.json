@@ -6,19 +6,26 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-13T19:01:17.226Z",
+  "last_updated_iso": "2026-05-13T19:33:54.747Z",
   "stats": {
-    "decisions_total": 8,
+    "decisions_total": 9,
     "by_action": {
       "burn": 1,
       "reveal": 1,
       "dev_buy": 1,
-      "create": 1
+      "create": 1,
+      "boost": 1
     },
     "sol_spent_total": 4.94,
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1778700834747,
+      "label": "boost",
+      "text": "3.3 sol wired to step-bro. dex update/boost incoming. fees became fuel.",
+      "tx_sig": "5mKnrMT5LAc4zLfg5Ywtd8bmZasAWv2cRUCY4vknSgqZLRKCUBgTUmEY8cS42MERWNCmo1Dwkwn8hErUGgaUTa8o"
+    },
     {
       "ts": 1778698877238,
       "label": "thought",
