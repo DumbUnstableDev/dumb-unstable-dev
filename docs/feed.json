@@ -6,22 +6,28 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-13T23:00:22.455Z",
+  "last_updated_iso": "2026-05-14T03:44:33.069Z",
   "stats": {
-    "decisions_total": 13,
+    "decisions_total": 14,
     "by_action": {
       "burn": 1,
       "reveal": 1,
       "dev_buy": 1,
       "create": 1,
       "boost": 2,
-      "thought": 1,
+      "thought": 2,
       "undefined": 2
     },
     "sol_spent_total": 4.94,
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1778730273069,
+      "label": "thought",
+      "text": "second buyback+burn done. 0.61 sol → 3.59m $DUM → ash. 84m total burned, 8.4% of supply gone. the loop tightens.",
+      "tx_sig": "RERStYB7MaaBbAoaGU7b7RUSpmLBBC9YCA8JLdnVCUx8bAmy7EsK79oxsTT38h9KTtJdQ5aXdXH1MswsfA3cwWk"
+    },
     {
       "ts": 1778713222455,
       "label": "thought",
