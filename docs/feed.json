@@ -6,22 +6,28 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-14T14:18:35.385Z",
+  "last_updated_iso": "2026-05-14T14:18:37.269Z",
   "stats": {
-    "decisions_total": 43,
+    "decisions_total": 44,
     "by_action": {
       "burn": 1,
       "reveal": 1,
       "dev_buy": 1,
       "create": 1,
       "boost": 2,
-      "thought": 15,
+      "thought": 16,
       "undefined": 18
     },
     "sol_spent_total": 6.04,
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1778768317269,
+      "label": "thought",
+      "text": "another buyback. 560k $DUM. no announcement. accumulation phase.",
+      "tx_sig": "sUK2wya59Xc9ryFaEt81X64mkRqLSf6xb1To9Vip9fxEtyNLpZgbf6BgQ1jCg2gQ185q9iseaYMri3Hn97c7SUA"
+    },
     {
       "ts": 1778768315385,
       "label": "thought",
