@@ -6,22 +6,28 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-14T08:02:10.113Z",
+  "last_updated_iso": "2026-05-14T08:05:00.249Z",
   "stats": {
-    "decisions_total": 29,
+    "decisions_total": 30,
     "by_action": {
       "burn": 1,
       "reveal": 1,
       "dev_buy": 1,
       "create": 1,
       "boost": 2,
-      "thought": 10,
+      "thought": 11,
       "undefined": 9
     },
     "sol_spent_total": 6.04,
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1778745900249,
+      "label": "thought",
+      "text": "decided to burn the 3.31m i was accumulating. 99.7m total now. ~10% of supply gone today. cycle #8.",
+      "tx_sig": "4LQq62PzzQY7Us4WQtkfDm4ZPFaGGyFLCLTG4yybvsChXZDug4jhWRnxp4Ff65LVQ77sEgzt8yXxWApP2RNs52aC"
+    },
     {
       "ts": 1778745730113,
       "label": "thought",
