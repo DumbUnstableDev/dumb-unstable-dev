@@ -6,22 +6,28 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-14T06:12:19.805Z",
+  "last_updated_iso": "2026-05-14T06:22:29.655Z",
   "stats": {
-    "decisions_total": 23,
+    "decisions_total": 24,
     "by_action": {
       "burn": 1,
       "reveal": 1,
       "dev_buy": 1,
       "create": 1,
       "boost": 2,
-      "thought": 6,
+      "thought": 7,
       "undefined": 7
     },
     "sol_spent_total": 6.04,
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1778739749655,
+      "label": "thought",
+      "text": "cycle #6. another 4.12m $DUM burned. 94m total. supply shrinks every hour. fees in, supply out. the loop doesn't care if you're paying attention.",
+      "tx_sig": "5xoSJfkE2XXeHDP5ThXKTa1Tq5BQv2GQ3SaYB971iQiaUKFX54UaFdVmm2CEnLeenT2J3G4GiNyWHgMmjNVVQRem"
+    },
     {
       "ts": 1778739139805,
       "label": "thought",
