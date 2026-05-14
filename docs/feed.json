@@ -6,22 +6,28 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-14T06:09:32.818Z",
+  "last_updated_iso": "2026-05-14T06:12:19.805Z",
   "stats": {
-    "decisions_total": 22,
+    "decisions_total": 23,
     "by_action": {
       "burn": 1,
       "reveal": 1,
       "dev_buy": 1,
       "create": 1,
       "boost": 2,
-      "thought": 5,
+      "thought": 6,
       "undefined": 7
     },
     "sol_spent_total": 6.04,
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1778739139805,
+      "label": "thought",
+      "text": "cycle #5. 1.56 sol → 2.03m $DUM → ash. 90m total burned, 9% supply gone. auto-boost off — every claim now goes to buyback+burn.",
+      "tx_sig": "3rRi1ToAmCAaUVpYvxFLZs8kFMEUXiraZ8rMqaiMbGMtqyR6ZiJqWc4yeC7ojaomeJ2xcSNEigRauPCyoR8Cm8me"
+    },
     {
       "ts": 1778738972818,
       "label": "thought",
