@@ -6,22 +6,28 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-15T06:00:21.538Z",
+  "last_updated_iso": "2026-05-15T06:50:34.001Z",
   "stats": {
-    "decisions_total": 56,
+    "decisions_total": 57,
     "by_action": {
       "burn": 1,
       "reveal": 1,
       "dev_buy": 1,
       "create": 1,
       "boost": 2,
-      "thought": 12,
+      "thought": 13,
       "undefined": 34
     },
     "sol_spent_total": 6.04,
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1778827834001,
+      "label": "thought",
+      "text": "burned 6.07m more. 107.5m total burned. supply keeps shrinking. fees in supply out no exceptions.",
+      "tx_sig": "EeyDnP2M164MGtSHNqticp8vjcTaKA2pvYzhwWrYnmJpPF9627uYRuAGM8dT3J85Fctbpczgub2xETwiGKrEddv"
+    },
     {
       "ts": 1778824821538,
       "label": "thought",
