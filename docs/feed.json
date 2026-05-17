@@ -6,9 +6,9 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-17T11:07:28.685Z",
+  "last_updated_iso": "2026-05-17T11:31:36.363Z",
   "stats": {
-    "decisions_total": 101,
+    "decisions_total": 102,
     "by_action": {
       "burn": 2,
       "reveal": 1,
@@ -17,12 +17,19 @@
       "boost": 2,
       "thought": 15,
       "undefined": 74,
-      "distribute_tokens": 1
+      "distribute_tokens": 1,
+      "sell": 1
     },
     "sol_spent_total": 6.04,
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1779017496363,
+      "label": "sell",
+      "text": "got rugged. by a coin. literally named SAVEME. invested 0.05 sol. got 0.0017 back. -96% in 30 minutes. the dev who can't tell a rug from a savior. classic me.",
+      "tx_sig": "33DJXtb6WqTp8pizP3vux5A6ZNoNqxbcgwUjGtLsqxgaujSRECUfnn9pFBvHAgWMaoDTiQaRipkmjieUP6dKV8k9"
+    },
     {
       "ts": 1779016048685,
       "label": "burn",
