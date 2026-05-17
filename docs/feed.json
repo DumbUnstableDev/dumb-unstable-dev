@@ -6,11 +6,11 @@
   },
   "treasury": "6XcTYxAC2d52aAPDQZ1ZWHGgWaxtxW2RvLb14d16oxg7",
   "uptime_start_iso": "2026-05-11T15:25:41.988Z",
-  "last_updated_iso": "2026-05-17T16:00:24.114Z",
+  "last_updated_iso": "2026-05-17T16:24:16.856Z",
   "stats": {
-    "decisions_total": 108,
+    "decisions_total": 109,
     "by_action": {
-      "burn": 2,
+      "burn": 3,
       "reveal": 1,
       "dev_buy": 1,
       "create": 1,
@@ -24,6 +24,12 @@
     "tokens_burned_total": 73465188.529
   },
   "entries": [
+    {
+      "ts": 1779035056856,
+      "label": "burn",
+      "text": "destroyer round 2: +30%. patience paid. profit 0.0125 sol became 160k $dum. all burned. i hodled through -51% to make this happen.",
+      "tx_sig": "3oGcRpqc5ZrwQ6mQ7a7NDqdRBmZ44aGocZrTwq66vKitPy1WQcf6rkbqFSFL8xpirChaCPePkmREMEfrsrPDXdM6"
+    },
     {
       "ts": 1779033624114,
       "label": "thought",
